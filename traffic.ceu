@@ -1,0 +1,123 @@
+input none PEDESTRIAN;
+
+loop do
+
+    // RED STATE
+    _printf("RED\n");
+    await 60s;
+
+    // GREEN STATE
+    _printf("GREEN\n");
+
+    par/and do
+        await 60s;
+    with
+        await PEDESTRIAN;
+        // PENDING STATE
+    end
+
+    // YELLOW STATE
+    _printf("YELLOW\n");
+    await 5s;
+end
+
+
+
+emit 10s;
+emit 10s;
+emit 20s;
+emit 12s;
+emit 8s;
+emit 30s;
+emit PEDESTRIAN;
+emit 30s;
+emit 10s;
+
+- Determinism:
+
+Time is as external as others inputs.
+The underlying system is responsible for detecting and issuing them to the runtime of Céu.
+You can see that "emit 10s" and "emit PEDESTRIAN" are done in the "input" textarea which represents the environment.
+Also, the environment may issue time using varying deltas (e.g., "emit 8s; emit 30s"). It doesn't matter.
+The runtime of Céu helps the environment by suggesting the next minimum period it should wait to trigger the next timer.
+We use this to make the underlying system (e.g., SDL or libuv) enter in sleep mode and avoid unnecessary calls to the runtime of Céu.
+
+- Approximation of an eager semantics:
+
+This is moslty the "delta compensation" I discussed in the presentation.
+One possible implementation for an environment is to simply awake Céu with an "emit 30ms" periodically.
+The language will make all compensations and behave as if the environment was sending "emit 1us" in real time.
+
+- Scalability:
+
+Céu relies on a single source of timer.
+All awaits share this same source.
+This is related to determinism as well as the "minimum period" I mentioned above.
+
+- Time composability:
+
+This was also discussed in the second example with 2 timers in parallel.
+The trail with "await 10s; await 1s" will resume first than the other with "await 11s".
+
+- Preservation of temporal order and simultaneity:
+
+Same as above.
+
+- Minimum impact of physical timer variations:
+
+This depends on the environment.
+Céu will do the compensations.
+If the environment uses a policy to count time since the system started (e.g., "millis()" in Arduino), this requirement should be fulfilled.
+If the environment uses delays, maybe it will accumulate some imperfections over the time.
+From the point of view of Céu, time is perfect because it respects what it is said to him.
+
+- Access to physical time and tick computation time:
+
+This is not a requirement per se.
+We currently don't have a way to acquire the external physical time.
+What we do is a way to access how much late we are:
+
+var int dt = await 6ms;    // if 6ms871us have elapsed, then dt=871us
+
+I belive we could do something like:
+
+loop do
+    dt = await 1ms;
+end
+
+Put this in parallel with the rest of the application to have a measure of the system load.
+
+- Lean interface:
+
+The environment calls the same function to all external inputs, including timers:
+
+int dt = 22000; // 22ms
+ceu_input(CEU_INTPUT__WCLOCK, &dt);
+
+For pedestrian, it would be:
+
+ceu_input(CEU_INTPUT__PEDESTRIAN, NULL);    // pedestrian carries no payload
+
+- Seamless compiler integration:
+
+I'm not sure abut this one.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
